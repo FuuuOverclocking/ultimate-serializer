@@ -1,0 +1,17 @@
+{
+    "name": "serialize-structured-data",
+    "version": "0.0.1",
+    "description": "Serialize and Deserialize structured data, following HTML 5 standard, in a compact and fast way, allowing binary data and serialization to binary.",
+    "main": "dist/index.js",
+    "repository": "https://github.com/xyzingh/serialize-structured-data",
+    "author": "X.Y.Z.",
+    "license": "MIT",
+    "scripts": {
+        "watch": "tsc --watch"
+    },
+    "dependencies": {},
+    "devDependencies": {
+        "jest": "^26.5.2",
+        "typescript": "^4.0.3"
+    }
+}
