@@ -7,23 +7,29 @@ Serialize and Deserialize structured data, following HTML 5 standard, in a compa
 ![npm](https://img.shields.io/npm/v/serialize-structured-data)
 
 ```
-Primitive types
+Primitive types (except symbol)
 Boolean objects
+Number objects
+BigInt objects
 String objects
 Date
 RegExp
-Blob
-File
-FileList          serialize
-ArrayBuffer      ----------→ string or binary(Buffer)
-ArrayBufferView                     |
-ImageBitmap                         | deserialize
-ImageData                           ↓
-Array                          original data
+▲ Blob
+▲ File
+× FileList            serialize
+ArrayBuffer        <-------------> string or binary(Buffer)
+ArrayBufferView      deserialize
+× ImageBitmap
+▲ ImageData
+Array
 Object
 Map
 Set
 ```
+
+- Cannot serialize/deserialize symbol, function, WeakMap, WeakSet, WeakRef, Promise, FileList, ImageBitmap, DOM Node.
+- Allow Proxy object, since we cannot distinguish them.
+- Remind: If you serialize an ArrayBufferView, the original ArrayBuffer it references will be serialized, even if the ArrayBufferView only refers to part of its memory location.
 
 HTML 5 Living Standard:
 
