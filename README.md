@@ -1,4 +1,6 @@
-# Serialize Structured Data
+# Ultimate Serializer
+
+Ultimate JavaScript data serializer.
 
 Serialize and Deserialize structured data, following HTML 5 standard, in a compact and fast way, allowing binary data and serialization to binary.
 
@@ -30,6 +32,7 @@ Set
 - Cannot serialize/deserialize symbol, function, WeakMap, WeakSet, WeakRef, Promise, FileList, ImageBitmap, DOM Node.
 - Allow Proxy object, since we cannot distinguish them.
 - Remind: If you serialize an ArrayBufferView, the original ArrayBuffer it references will be serialized, even if the ArrayBufferView only refers to part of its memory location.
+- Always use little endian.
 
 HTML 5 Living Standard:
 

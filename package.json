@@ -1,9 +1,9 @@
 {
-    "name": "serialize-structured-data",
+    "name": "ultimate-serializer",
     "version": "0.0.1",
-    "description": "Serialize and Deserialize structured data, following HTML 5 standard, in a compact and fast way, allowing binary data and serialization to binary.",
+    "description": "Ultimate JavaScript data serializer.",
     "main": "dist/index.js",
-    "repository": "https://github.com/xyzingh/serialize-structured-data",
+    "repository": "https://github.com/xyzingh/ultimate-serializer",
     "author": "X.Y.Z.",
     "license": "MIT",
     "scripts": {
@@ -18,7 +18,7 @@
         "conventional-changelog-cli": "^2.1.0",
         "cz-conventional-changelog": "3.3.0",
         "git-cz": "^4.7.1",
-        "jest": "^26.5.2",
+        "jest": "^26.5.3",
         "typescript": "^4.0.3"
     },
     "config": {
