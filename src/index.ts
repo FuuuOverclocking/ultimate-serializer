@@ -1,74 +1,92 @@
-import type { SerializeOptions, SerializeReturn } from './types';
-import { Serialization } from './serialization';
-import { checkSerializeEnvironment } from './env';
+import {
+    SerializerOptions,
+    TypeDescriptor,
+    Dictionary,
+    predefinedTypeNames,
+} from './types';
+import {
+    BinarySerialization,
+    isBinarySerializationTarget,
+} from './binary-serialization';
+import { isStringSerializationTarget } from './string-serialization';
 
-export function serialize(
-    data: any,
-    target: SerializeOptions['target'],
-): SerializeReturn;
-export function serialize(
-    data: any,
-    options: SerializeOptions,
-): SerializeReturn;
-export function serialize(
-    data: any,
-    opts: SerializeOptions | SerializeOptions['target'],
-): SerializeReturn {
-    const options: SerializeOptions =
-        typeof opts === 'string'
-            ? {
-                  target: opts,
-              }
-            : opts;
-    options.forUnsupported ??= 'error';
-    options.allowBlobAndFile ??= false;
-    options.allowImageData ??= false;
-    options.returns ??= options.allowBlobAndFile ? 'promise' : 'direct';
+class UltimateSerializer {
+    public forUnsupported: 'error' | 'warn' | 'avoid';
+    constructor(options?: SerializerOptions) {
+        options ??= {};
+        this.forUnsupported = options.forUnsupported ?? 'error';
+        if (options.enableBlobAndFile) {
+            // this.define();
+        }
+        if (options.enableImageData) {
+            // this.define();
+        }
+        if (options.enableNodeBuffer) {
+            // this.define();
+        }
+        if (options.extraTypes) {
+            for (const typeDesc of options.extraTypes) {
+                this.define(typeDesc);
+            }
+        }
+    }
 
-    checkSerializeOptions(options);
-    checkSerializeEnvironment(options);
+    private extraTypes: Dictionary<TypeDescriptor> = {};
+    private extraTypesNum = 0;
 
-    return new Serialization(data, options).getResult();
+    public define(descriptor: TypeDescriptor): this {
+        const { type } = descriptor;
+        if (this.extraTypes[type] || predefinedTypeNames.indexOf(type) !== -1) {
+            throw new Error(`Type "${type}" has already been defined.`);
+        }
+        if (type.length > 32 || !/^[A-Z][0-9a-zA-Z_$]*$/.test(type)) {
+            throw new Error(
+                `UltimateSerializer: Type "${type}" must start with a capital ` +
+                    `letter, composed of letters, numbers, _ and $, whose ` +
+                    `length should be <= 32.`,
+            );
+        }
+        if (this.extraTypesNum >= 256) {
+            throw new Error(
+                `UltimateSerializer: 256 extra types have been defined. No more ` +
+                    `extra types can be defined.`,
+            );
+        }
+        this.extraTypes[type] = descriptor;
+        this.extraTypesNum++;
+        return this;
+    }
+
+    public serialize(data: any, target: 'string'): string;
+    public serialize(data: any, target: 'Uint8Array'): Uint8Array;
+    public serialize(data: any, target: 'Uint8Array[]'): Uint8Array[];
+    public serialize(data: any, target: 'Promise<string>'): Promise<string>;
+    public serialize(
+        data: any,
+        target: 'Promise<Uint8Array>',
+    ): Promise<Uint8Array>;
+    public serialize(
+        data: any,
+        target: 'Promise<Uint8Array[]>',
+    ): Promise<Uint8Array[]>;
+    public serialize(
+        data: any,
+        target: 'ReadableStream<string>',
+    ): ReadableStream<string>;
+    public serialize(
+        data: any,
+        target: 'ReadableStream<Uint8Array>',
+    ): ReadableStream<Uint8Array>;
+
+    public serialize(data: any, target: string): any {
+        if (isBinarySerializationTarget(target)) {
+            return new BinarySerialization(this, data).evaluate(target);
+        }
+        if (isStringSerializationTarget(target)) {
+            return new StringSerialization(this, data).evaluate(target);
+        }
+        throw new Error('UltimateSerializer: Invalid serialization target.');
+    }
 }
 
-function checkSerializeOptions(options: SerializeOptions) {
-    const errorMessage = 'serialize-structured-data: Invalid arguments.';
-    const {
-        target,
-        forUnsupported,
-        allowBlobAndFile,
-        allowImageData,
-        returns,
-    } = options;
-
-    if (
-        target !== 'string' &&
-        target !== 'Uint8Array' &&
-        target !== 'Uint8Array[]'
-    ) {
-        throw new Error(errorMessage);
-    }
-    if (
-        forUnsupported !== void 0 &&
-        forUnsupported !== 'error' &&
-        forUnsupported !== 'avoid'
-    ) {
-        throw new Error(errorMessage);
-    }
-    if (typeof allowBlobAndFile !== 'boolean') {
-        throw new Error(errorMessage);
-    }
-    if (typeof allowImageData !== 'boolean') {
-        throw new Error(errorMessage);
-    }
-    if (
-        returns !== 'direct' &&
-        returns !== 'node-readable-stream' &&
-        returns !== 'promise'
-    ) {
-        throw new Error(errorMessage);
-    }
-    if (allowBlobAndFile && returns === 'direct') {
-        throw new Error(errorMessage);
-    }
-}
+export = UltimateSerializer;

@@ -1,9 +1,5 @@
-export function clamp(value: number, min: number, max: number) {
-    return value < min ? min : value > max ? max : value;
-}
-
 export class ArraySet<T = any> {
-    private arr: T[] = [];
+    private readonly arr: T[] = [];
     public get(i: number): T | undefined {
         return this.arr[i];
     }
@@ -20,3 +16,8 @@ export class ArraySet<T = any> {
         return this;
     }
 }
+export const isInteger =
+    Number.isInteger ||
+    ((value: number): boolean => {
+        return isFinite(value) && Math.floor(value) === value;
+    });
