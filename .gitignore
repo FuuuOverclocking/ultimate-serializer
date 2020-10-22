@@ -1,6 +1,14 @@
 dist/
 tmp/
 
+# yarn v2
+.yarn/*
+!.yarn/cache
+!.yarn/releases
+!.yarn/plugins
+!.yarn/sdks
+!.yarn/versions
+
 # Editor Configuration
 .vscode/
 .vs/
