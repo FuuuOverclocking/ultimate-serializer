@@ -8,13 +8,30 @@ import {
     BinarySerialization,
     isBinarySerializationTarget,
 } from './binary-serialization';
-import { isStringSerializationTarget } from './string-serialization';
+import {
+    isStringSerializationTarget,
+    StringSerialization,
+} from './string-serialization';
+import { err } from './utilities';
 
 class UltimateSerializer {
     public forUnsupported: 'error' | 'warn' | 'avoid';
+    public preferUtf16: boolean;
+    public refineArrayBufferView:
+        | boolean
+        | Array<ArrayBuffer | ArrayBufferView>;
     constructor(options?: SerializerOptions) {
         options ??= {};
+        options.onSerialize ??= {};
         this.forUnsupported = options.forUnsupported ?? 'error';
+        this.preferUtf16 =
+            !!options.onSerialize.stringEncodingFormat &&
+            options.onSerialize.stringEncodingFormat
+                .toLowerCase()
+                .replace(/-/g, '') === 'utf16';
+        this.refineArrayBufferView =
+            options.onSerialize.refineArrayBufferView ?? false;
+
         if (options.enableBlobAndFile) {
             // this.define();
         }
@@ -31,7 +48,7 @@ class UltimateSerializer {
         }
     }
 
-    private extraTypes: Dictionary<TypeDescriptor> = {};
+    public extraTypes: Dictionary<TypeDescriptor> = {};
     private extraTypesNum = 0;
 
     public define(descriptor: TypeDescriptor): this {
@@ -85,7 +102,7 @@ class UltimateSerializer {
         if (isStringSerializationTarget(target)) {
             return new StringSerialization(this, data).evaluate(target);
         }
-        throw new Error('UltimateSerializer: Invalid serialization target.');
+        err('Invalid serialization target.');
     }
 }
 
