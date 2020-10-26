@@ -1,3 +1,30 @@
+export const hasBigInt =
+    typeof BigInt === 'function' &&
+    BigInt(10).toString(16).toLowerCase() === 'a';
+
+export const inBrowser = typeof window !== 'undefined';
+
+export function isDOMNode(o: any) {
+    return (
+        inBrowser &&
+        (typeof window.Node === 'object'
+            ? o instanceof window.Node
+            : o &&
+              typeof o === 'object' &&
+              typeof o.nodeType === 'number' &&
+              typeof o.nodeName === 'string')
+    );
+}
+
+export const TypedArray: any = (function () {
+    if (typeof Int8Array === 'undefined') return;
+
+    const TypedArrayProto = Object.getPrototypeOf(Int8Array.prototype);
+    if (typeof TypedArrayProto === 'object' && TypedArrayProto !== null) {
+        return TypedArrayProto.constructor;
+    }
+})();
+
 export const _TextEncoder = (() => {
     let _TextEncoder: any;
     if (typeof TextEncoder === 'undefined') {

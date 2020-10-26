@@ -3,6 +3,7 @@ import {
     TypeDescriptor,
     Dictionary,
     predefinedTypeNames,
+    Options,
 } from './types';
 import {
     BinarySerialization,
@@ -15,22 +16,17 @@ import {
 import { err } from './utilities';
 
 class UltimateSerializer {
-    public forUnsupported: 'error' | 'warn' | 'avoid';
-    public preferUtf16: boolean;
-    public refineArrayBufferView:
-        | boolean
-        | Array<ArrayBuffer | ArrayBufferView>;
-    constructor(options?: SerializerOptions) {
+    public readonly options: SerializerOptions;
+    constructor(options?: Options) {
         options ??= {};
-        options.onSerialize ??= {};
-        this.forUnsupported = options.forUnsupported ?? 'error';
-        this.preferUtf16 =
-            !!options.onSerialize.stringEncodingFormat &&
-            options.onSerialize.stringEncodingFormat
-                .toLowerCase()
-                .replace(/-/g, '') === 'utf16';
-        this.refineArrayBufferView =
-            options.onSerialize.refineArrayBufferView ?? false;
+        options.serializing ??= {};
+
+        options.forUnsupported ??= 'error';
+        options.extraTypes ??= [];
+        options.serializing.preferUTF16 ??= false;
+        options.serializing.refineArrayBufferView ??= false;
+
+        this.options = options as SerializerOptions;
 
         if (options.enableBlobAndFile) {
             // this.define();
@@ -41,10 +37,9 @@ class UltimateSerializer {
         if (options.enableNodeBuffer) {
             // this.define();
         }
-        if (options.extraTypes) {
-            for (const typeDesc of options.extraTypes) {
-                this.define(typeDesc);
-            }
+
+        for (const typeDesc of options.extraTypes) {
+            this.define(typeDesc);
         }
     }
 
@@ -54,7 +49,7 @@ class UltimateSerializer {
     public define(descriptor: TypeDescriptor): this {
         const { type } = descriptor;
         if (this.extraTypes[type] || predefinedTypeNames.indexOf(type) !== -1) {
-            throw new Error(`Type "${type}" has already been defined.`);
+            throw new Error(`Type name "${type}" is already in use.`);
         }
         if (type.length > 32 || !/^[A-Z][0-9a-zA-Z_$]*$/.test(type)) {
             throw new Error(
@@ -63,9 +58,9 @@ class UltimateSerializer {
                     `length should be <= 32.`,
             );
         }
-        if (this.extraTypesNum >= 256) {
+        if (this.extraTypesNum >= 65536) {
             throw new Error(
-                `UltimateSerializer: 256 extra types have been defined. No more ` +
+                `UltimateSerializer: 65536 extra types have been defined. No more ` +
                     `extra types can be defined.`,
             );
         }

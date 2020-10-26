@@ -6,8 +6,41 @@ export function warn(message: string): void {
     console.log('UltimateSerializer: ' + message);
 }
 
+export function assert(bool: boolean, message?: string): void {
+    if (!bool) {
+        message = message || 'AssertionError';
+        err(message);
+    }
+}
+
+export function clamp(value: number, min: number, max: number): number {
+    return value < min ? min : value > max ? max : value;
+}
+
 export function values<T>(obj: { [s: string]: T } | ArrayLike<T>): T[] {
     return Object.keys(obj).map((key) => (obj as any)[key]);
+}
+
+/**
+ * Checks if `value` is a plain object.
+ *
+ * Definition of Plain Object:
+ * - where the object comes from:
+ *   - { }
+ *   - new Object()
+ *   - Object.create(null)
+ * - object[Symbol.toStringTag] is undefined
+ */
+export function isPlainObject(value: any): value is object {
+    if (
+        typeof value !== 'object' ||
+        value === null ||
+        Object.prototype.toString.call(value) !== '[object Object]'
+    ) {
+        return false;
+    }
+    const proto = Object.getPrototypeOf(value);
+    return proto === Object.prototype || proto === null;
 }
 
 export class ArraySet<T = any> {
@@ -37,7 +70,7 @@ export const isInteger =
     });
 
 export function bigIntToBuffer(bigint: bigint): Uint8Array {
-    console.assert(bigint >= 0);
+    assert(bigint >= 0);
 
     let hex = bigint.toString(16);
     if (hex.length % 2) {

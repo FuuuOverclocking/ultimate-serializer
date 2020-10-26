@@ -1,16 +1,23 @@
-export const version = 1;
-
 export type Dictionary<T = string> = Record<string, T>;
 
-export interface SerializerOptions {
+export interface Options {
     forUnsupported?: 'error' | 'warn' | 'avoid';
+    extraTypes?: TypeDescriptor[];
+    serializing?: {
+        preferUTF16?: boolean;
+        refineArrayBufferView?: false;
+    };
     enableBlobAndFile?: boolean;
     enableImageData?: boolean;
     enableNodeBuffer?: boolean;
-    extraTypes?: TypeDescriptor[];
-    onSerialize?: {
-        stringEncodingFormat?: 'utf8' | 'utf16';
-        refineArrayBufferView?: boolean | Array<ArrayBuffer | ArrayBufferView>;
+}
+
+export interface SerializerOptions {
+    forUnsupported: 'error' | 'warn' | 'avoid';
+    extraTypes: TypeDescriptor[];
+    serializing: {
+        preferUTF16: boolean;
+        refineArrayBufferView: boolean | Array<ArrayBuffer | ArrayBufferView>;
     };
 }
 
@@ -61,17 +68,18 @@ export const enum DataType {
     BigInt = 5, // [negative: 0 | 1] ArrayBuffer(ot)
     ArrayEmptySlots = 6, // (default disable) num: Number
     Refer = 7, // id: Number
-    EOF = 8,
-    ExtraTypeInfo = 23, // typenames: Array(ot)
-    SerializationFormatVersion = 24, // version: Number(ot, uint8)
+    SerializationFormatVersion = 8, // version: Number(ot, uint8)
+    ExtraTypeInfo = 9, // typenames: Array(ot)
+    EOF = 10,
+
     // Referencable Type
 
-    Array = 9, // length: Number(ot, uint32), ...slots: DataType(enable ArrayEmptySlot)[]
-    Object = 10, // pairLength: Number(ot, uint32), ...slots: pair<String(ot), DataType>[]
-    Set = 11, // size: Number(ot, uint32), ...slots: DataType[]
-    Map = 12, // size: Number(ot, uint32), ...slots: pair<DataType, DataType>[]
-    ArrayBuffer = 13, // size: Number(ot, double), bits
-    ArrayBufferView = 14,
+    Array = 11, // length: Number, ...slots: DataType(enable ArrayEmptySlot)[]
+    Object = 12, // pairLength: Number, ...slots: pair<String(ot), DataType>[]
+    Set = 13, // size: Number, ...slots: DataType[]
+    Map = 14, // size: Number, ...slots: pair<DataType, DataType>[]
+    ArrayBuffer = 15, // size: Number(ot, double), bits
+    ArrayBufferView = 16,
     /*
         Constructor(4 bit enum): DataView: 0,
         ByteLength: Number(ot, double),
@@ -90,13 +98,12 @@ export const enum DataType {
             | Float64Array
             | BigInt64Array
             | BigUint64Array: 11,
-        ByteLength: Number(ot, double),
         ByteOffset: Number(ot, double),
         ArrayLength: Number(ot, double),
         buffer: ArrayBuffer or Refer,
     */
-    BooleanObject = 15, // [bool: false | true]
-    NumberObject = 16,
+    BooleanObject = 17, // [bool: false | true]
+    NumberObject = 18,
     /*
         [length:
             | int8:0 = 1
@@ -109,30 +116,31 @@ export const enum DataType {
         ],
         bits,
     */
-    StringObject = 17,
+    StringObject = 19,
     /*
         [code: UTF-8 | UTF-16 = UTF-8],
         byteLength: Number,
         bits,
     */
-    BigIntObject = 18, // ArrayBuffer(ot)
-    Date = 19, // DateValue: Number(ot, double)
-    RegExp = 20, // OriginalSource: String(ot), OriginalFlags: String(ot)
-    Error = 21,
+    BigIntObject = 20, // [negative: 0 | 1] ArrayBuffer(ot)
+    Date = 21, // DateValue: Number(ot, double)
+    RegExp = 22, // OriginalSource: String(ot), OriginalFlags: String(ot)
+    Error = 23,
     /*
         (if wrong, correct to Error silently at serializing, error at deserializing)
-        name:
+        [name:
             | Error
             | EvalError
             | RangeError
             | ReferenceError
             | SyntaxError
             | TypeError
-            | URIError,
-        message: String(ot),
-        stack: String(ot),
+            | URIError
+        ],
+        message: String | undefined,
+        stack: String | undefined,
     */
-    ExtraType = 22, // typeId: Number(ot, uint8), comps: Array(ot)
+    ExtraType = 24, // typeId: Number(ot, uint16), comps: Array(ot)
     // Blob, // MIME: String, buffer: ArrayBuffer | Refer
     // File,
     // /*
@@ -161,11 +169,36 @@ export const enum NumberTypeBits {
 }
 
 export const enum StringTypeBits {
-    Utf8 = 0 << 5,
-    Utf16 = 1 << 5,
+    UTF8 = 0 << 5,
+    UTF16 = 1 << 5,
 }
 
 export const enum BigIntTypeBits {
     Positive = 0 << 5,
     Negative = 1 << 5,
+}
+
+export const enum ArrayBufferViewType {
+    DataView = 0,
+    Int8Array = 1,
+    Uint8Array = 2,
+    Uint8ClampedArray = 3,
+    Int16Array = 4,
+    Uint16Array = 5,
+    Int32Array = 6,
+    Uint32Array = 7,
+    Float32Array = 8,
+    Float64Array = 9,
+    BigInt64Array = 10,
+    BigUint64Array = 11,
+}
+
+export const enum ErrorTypeBits {
+    Error = 0 << 5,
+    EvalError = 1 << 5,
+    RangeError = 2 << 5,
+    ReferenceError = 3 << 5,
+    SyntaxError = 4 << 5,
+    TypeError = 5 << 5,
+    URIError = 6 << 5,
 }

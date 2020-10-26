@@ -1,48 +1,85 @@
-interface BinarySerializationBufferSlot {
-    state: SlotState;
-    bytes: Uint8Array | null;
-    pos: number; // the position of the next available byte
-    capacity: number;
-}
-
-const enum SlotState {
-    Filling,
-    Ready,
-    Consumed,
-}
+import { assert, clamp } from './utilities';
 
 export class BinarySerializationBuffer {
     constructor(
-        public readonly onProgress?: (chunk: Uint8Array) => void,
-        public readonly freeSlotOnProgress?: boolean,
+        private parent: BinarySerializationBuffer | undefined = void 0,
     ) {}
 
-    public readonly slots: BinarySerializationBufferSlot[] = [
-        {
-            state: SlotState.Filling,
-            bytes: new Uint8Array(512),
-            pos: 0,
-            capacity: 512,
-        },
-    ];
+    public ready = false;
+    private ended = false;
+    private notReadySubBufferNum = 0;
+
+    private slots: Array<Uint8Array | BinarySerializationBuffer> = [];
 
     private currentSlotId = 0;
-    private lastSentSlotId = -1;
-    private lastAllocatedSize = 512; // in bytes
+    private currentSlot(): Uint8Array | undefined {
+        return this.slots[this.currentSlotId] as Uint8Array | undefined;
+    }
+    private currentSlotPos = 0; // the position of the next available byte of the current slot
+    private currentSlotCap = 0; // the capacity of the current slot
+    private lastAllocatedSize = 0; // in bytes
 
-    private currentSlot(): BinarySerializationBufferSlot {
-        return this.slots[this.currentSlotId];
+    public putSubBuffer(): BinarySerializationBuffer {
+        assert(!this.ended);
+
+        this.endCurrentSlotIfExists();
+        this.notReadySubBufferNum++;
+        const buf = new BinarySerializationBuffer(this);
+        this.slots.push(buf);
+        this.currentSlotId = this.slots.length;
+        this.currentSlotPos = 0;
+        this.currentSlotCap = 0;
+        return buf;
+    }
+
+    private onSubBufferReady(): void {
+        assert(!this.ready);
+        assert(this.notReadySubBufferNum > 0);
+
+        this.notReadySubBufferNum--;
+        this.ready = this.ended && this.notReadySubBufferNum === 0;
+        if (this.ready && this.parent) {
+            this.parent.onSubBufferReady();
+        }
+    }
+
+    public extract(): Uint8Array[] {
+        assert(this.ready);
+
+        const result: Uint8Array[] = [];
+        for (const slot of this.slots) {
+            if (slot instanceof BinarySerializationBuffer) {
+                result.push(...slot.extract());
+            } else {
+                result.push(slot);
+            }
+        }
+        return result;
+    }
+
+    private endCurrentSlotIfExists(): void {
+        const slot = this.currentSlot();
+        if (!slot) return;
+
+        const reducedSlot = new Uint8Array(
+            slot.buffer,
+            slot.byteOffset,
+            this.currentSlotPos,
+        );
+        this.currentSlotCap = this.currentSlotPos;
+        this.slots[this.currentSlotId] = reducedSlot;
     }
 
     /**
-     * Allocate a new slot.
+     * Allocate a new slot of Uint8Array type.
      * @param minSize If specified, the size of the new slot is not less than it.
      */
     private allocateNewSlot(minSize?: number): void {
+        const slotMinSize = 512; // 512B
         const slotCommonMaxSize = 1024 * 1024; // 1MB
 
         let size = this.lastAllocatedSize * 2;
-        size = Math.min(size, slotCommonMaxSize);
+        size = clamp(size, slotMinSize, slotCommonMaxSize);
         if (minSize) {
             while (size < minSize) {
                 size *= 2;
@@ -50,173 +87,64 @@ export class BinarySerializationBuffer {
         }
         this.lastAllocatedSize = size;
 
-        this.currentSlotId++;
-        this.slots[this.currentSlotId] = {
-            state: SlotState.Filling,
-            bytes: new Uint8Array(size),
-            pos: 0,
-            capacity: size,
-        };
+        this.slots.push(new Uint8Array(size));
+        this.currentSlotId = this.slots.length - 1;
+        this.currentSlotPos = 0;
+        this.currentSlotCap = size;
     }
 
-    /**
-     * Allocate a new empty slot.
-     */
-    private allocateEmptySlot(): void {
-        this.currentSlotId++;
-        this.slots[this.currentSlotId] = {
-            state: SlotState.Filling,
-            bytes: null,
-            pos: 0,
-            capacity: 0,
-        };
-    }
-
-    private nextSlotToSend(): BinarySerializationBufferSlot | undefined {
-        return this.slots[this.lastSentSlotId + 1];
-    }
-
-    private aSlotGetsReady() {
-        if (!this.onProgress) return;
-
-        let slot: BinarySerializationBufferSlot | undefined;
-        while (
-            (slot = this.nextSlotToSend()) &&
-            slot.state === SlotState.Ready
-        ) {
-            this.lastSentSlotId++;
-            slot.state = SlotState.Consumed;
-            this.onProgress(slot.bytes!);
-
-            if (this.freeSlotOnProgress) {
-                slot.bytes = null;
-            }
+    public end(): void {
+        this.endCurrentSlotIfExists();
+        this.ended = true;
+        this.ready = this.notReadySubBufferNum === 0;
+        if (this.ready && this.parent) {
+            this.parent.onSubBufferReady();
         }
-    }
-
-    /**
-     * Fill an empty slot that has been already allocated.
-     */
-    public fill(slotId: number, value: number[] | Uint8Array): void {
-        const slot = this.slots[slotId];
-
-        console.assert(
-            slot.bytes === null,
-            'Error: BinarySerializationBuffer.fill()',
-        );
-
-        if (Array.isArray(value)) {
-            slot.bytes = new Uint8Array(value);
-        } else {
-            slot.bytes = value;
-        }
-        slot.state = SlotState.Ready;
-        slot.pos = slot.capacity = value.length;
-        this.aSlotGetsReady();
-    }
-
-    /**
-     * End the current slot in advance. Because there may be unused memory space
-     * in the slot, a new Uint8Array instance is generated to refer to a narrower
-     * memory range.
-     *
-     * `bytes` and `capacity` is modified.
-     */
-    private endCurrentSlot(): void {
-        const slot = this.currentSlot();
-        const bytes = slot.bytes!;
-        const reducedBytes = new Uint8Array(
-            bytes.buffer,
-            bytes.byteOffset,
-            slot.pos,
-        );
-        slot.bytes = reducedBytes;
-        slot.capacity = slot.pos;
     }
 
     public put(chunk: number[] | Uint8Array): void {
-        let slot = this.currentSlot();
-        console.assert(slot.state === SlotState.Filling);
-        console.assert(slot.bytes instanceof Uint8Array);
-
-        if (Array.isArray(chunk)) {
-            if (chunk.length <= slot.capacity - slot.pos) {
-                slot.bytes!.set(chunk, slot.pos);
-                slot.pos += chunk.length;
-            } else {
-                const rest = chunk.splice(slot.capacity - slot.pos);
-                const restLength = rest.length;
-
-                slot.bytes!.set(chunk, slot.pos);
-                slot.pos = slot.capacity;
-                slot.state = SlotState.Ready;
-                this.aSlotGetsReady();
-
-                this.allocateNewSlot(restLength);
-                slot = this.currentSlot();
-                slot.bytes!.set(rest, 0);
-                slot.pos += restLength;
-            }
-            return;
-        }
-
-        // If chunk is larger than `maxCopySize`, then do not copy it.
-        // Instead, allocate a new slot to reference it.
+        const isArray = Array.isArray(chunk);
         const maxCopySize = 16 * 1024; // 16KB
 
-        if (chunk.length < maxCopySize) {
-            if (chunk.length <= slot.capacity - slot.pos) {
-                slot.bytes!.set(chunk, slot.pos);
-                slot.pos += chunk.length;
-            } else {
-                const rest = chunk.subarray(slot.capacity - slot.pos);
-                const restLength = rest.length;
-                chunk = chunk.subarray(0, slot.capacity - slot.pos);
-
-                slot.bytes!.set(chunk, slot.pos);
-                slot.pos = slot.capacity;
-                slot.state = SlotState.Ready;
-                this.aSlotGetsReady();
-
-                this.allocateNewSlot(restLength);
-                slot = this.currentSlot();
-                slot.bytes!.set(rest, 0);
-                slot.pos += restLength;
-            }
+        // chunk is very large
+        if (!isArray && chunk.length >= maxCopySize) {
+            this.endCurrentSlotIfExists();
+            this.slots.push(chunk as Uint8Array);
+            this.currentSlotId = this.slots.length;
+            this.currentSlotPos = 0;
+            this.currentSlotCap = 0;
             return;
         }
 
-        // chunk is very large
+        let slot = this.currentSlot();
+        if (!slot) {
+            this.allocateNewSlot();
+            slot = this.currentSlot()!;
+        }
 
-        this.endCurrentSlot();
-        slot.state = SlotState.Ready;
-        this.aSlotGetsReady();
+        const currentSlotFreeSpace = this.currentSlotCap - this.currentSlotPos;
 
-        this.allocateEmptySlot();
-        slot = this.currentSlot();
-        slot.bytes = chunk;
-        slot.pos = slot.capacity = chunk.length;
-        slot.state = SlotState.Ready;
-        this.aSlotGetsReady();
+        if (chunk.length <= currentSlotFreeSpace) {
+            slot.set(chunk, this.currentSlotPos);
+            this.currentSlotPos += chunk.length;
+            return;
+        }
+
+        let part1: number[] | Uint8Array;
+        let part2: number[] | Uint8Array;
+        if (isArray) {
+            part1 = chunk;
+            part2 = (part1 as number[]).splice(currentSlotFreeSpace);
+        } else {
+            part1 = (chunk as Uint8Array).subarray(0, currentSlotFreeSpace);
+            part2 = (chunk as Uint8Array).subarray(currentSlotFreeSpace);
+        }
+
+        slot.set(part1, this.currentSlotPos);
 
         this.allocateNewSlot();
-    }
-
-    /**
-     * Declare that there won't be any new input.
-     */
-    public end(): void {
-        const slots = this.slots;
-        const len = slots.length;
-        for (let i = 0; i < len; ++i) {
-            console.assert(slots[i].bytes !== null);
-        }
-
-        const slot = this.currentSlot();
-        if (slot.state === SlotState.Filling) {
-            this.endCurrentSlot();
-            slot.state = SlotState.Ready;
-            this.aSlotGetsReady();
-        }
+        slot = this.currentSlot()!;
+        slot.set(part2, 0);
+        this.currentSlotPos = part2.length;
     }
 }
