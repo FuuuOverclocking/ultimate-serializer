@@ -1,9 +1,9 @@
 import {
+    Options,
     SerializerOptions,
     TypeDescriptor,
-    Dictionary,
     predefinedTypeNames,
-    Options,
+    Dictionary,
 } from './types';
 import {
     BinarySerialization,
@@ -15,7 +15,7 @@ import {
 } from './string-serialization';
 import { err } from './utilities';
 
-class UltimateSerializer {
+export = class UltimateSerializer {
     public readonly options: SerializerOptions;
     constructor(options?: Options) {
         options ??= {};
@@ -99,6 +99,4 @@ class UltimateSerializer {
         }
         err('Invalid serialization target.');
     }
-}
-
-export = UltimateSerializer;
+};

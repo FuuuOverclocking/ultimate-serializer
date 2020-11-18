@@ -6,6 +6,7 @@ export interface Options {
     serializing?: {
         preferUTF16?: boolean;
         refineArrayBufferView?: false;
+        treatSpecialObjectsAsPlain?: false;
     };
     enableBlobAndFile?: boolean;
     enableImageData?: boolean;
@@ -18,6 +19,7 @@ export interface SerializerOptions {
     serializing: {
         preferUTF16: boolean;
         refineArrayBufferView: boolean | Array<ArrayBuffer | ArrayBufferView>;
+        treatSpecialObjectsAsPlain?: boolean;
     };
 }
 
